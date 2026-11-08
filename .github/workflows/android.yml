@@ -20,8 +20,12 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
+      # ارتقاء به نسخه v4 و نصب صریح پکیج‌های مورد نیاز
       - name: Set up Android SDK
-        uses: android-actions/setup-android@v2
+        uses: android-actions/setup-android@v4
+        with:
+          packages: 'platform-tools'
+          cmdline-tools-version: 'latest'
 
       - name: Install Android Build Tools
         run: |
