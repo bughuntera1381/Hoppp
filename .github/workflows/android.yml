@@ -3,6 +3,7 @@ on:
   workflow_dispatch:
   push:
     branches: [main]
+
 jobs:
   export-android:
     runs-on: ubuntu-latest
@@ -11,6 +12,7 @@ jobs:
     env:
       GODOT_VERSION: "4.3"
       PROJECT_PATH: "."
+      ANDROID_SDK_ROOT: "/usr/local/lib/android/sdk"
     steps:
       - uses: actions/checkout@v4
 
@@ -20,17 +22,28 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
-      # ارتقاء به نسخه v4 و نصب صریح پکیج‌های مورد نیاز
+      # ۱. استفاده از نسخه پایدارتر اکشن برای جلوگیری از خطای 404
       - name: Set up Android SDK
-        uses: android-actions/setup-android@v4
+        uses: android-actions/setup-android@v4.0.4
         with:
           packages: 'platform-tools'
-          cmdline-tools-version: 'latest'
 
-      - name: Install Android Build Tools
+      # ۲. نصب دستی ابزارهای خط فرمان برای اطمینان از صحت مسیر
+      - name: Install cmdline-tools manually
         run: |
-          yes | sdkmanager --licenses
-          sdkmanager "build-tools;34.0.0" "platforms;android-34"
+          mkdir -p $ANDROID_SDK_ROOT/cmdline-tools
+          cd $ANDROID_SDK_ROOT/cmdline-tools
+          # دانلود از آدرس معتبر و جدید گوگل
+          wget -q https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip
+          unzip -q commandlinetools-linux-11076708_latest.zip
+          rm commandlinetools-linux-11076708_latest.zip
+          mv cmdline-tools latest
+
+      # ۳. نصب پکیج‌های مورد نیاز Godot 4.3 (Build Tools 34 و Platform 34)
+      - name: Install Android Build Tools and Platform
+        run: |
+          yes | $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager --licenses
+          $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager "platform-tools" "build-tools;34.0.0" "platforms;android-34"
 
       - name: Setup templates and debug keystore
         run: |
@@ -38,10 +51,12 @@ jobs:
           mv /root/.local/share/godot/export_templates/${GODOT_VERSION}.stable ~/.local/share/godot/export_templates/${GODOT_VERSION}.stable
           keytool -keyalg RSA -genkeypair -alias androiddebugkey -keypass android -keystore debug.keystore -storepass android -dname "CN=Android Debug,O=Android,C=US" -validity 9999 -deststoretype pkcs12
           mv debug.keystore /root/debug.keystore
+          
+          # تنظیم مسیرهای دقیق SDK و Java برای Godot
           cat > ~/.config/godot/editor_settings-4.tres <<EOF2
           [gd_resource type="EditorSettings" format=3]
           [resource]
-          export/android/android_sdk_path = "/usr/local/lib/android/sdk"
+          export/android/android_sdk_path = "${ANDROID_SDK_ROOT}"
           export/android/java_sdk_path = "${JAVA_HOME}"
           export/android/debug_keystore = "/root/debug.keystore"
           export/android/debug_keystore_user = "androiddebugkey"
@@ -53,6 +68,7 @@ jobs:
           godot --headless --import --path . || true
           mkdir -p build
           godot --headless --verbose --path . --export-debug "Android" build/ApexArena.apk
+
       - uses: actions/upload-artifact@v4
         with:
           name: ApexArena-apk
