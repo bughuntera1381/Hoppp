@@ -1,0 +1,38 @@
+name: Build Android APK
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+jobs:
+  export-android:
+    runs-on: ubuntu-latest
+    container:
+      image: barichello/godot-ci:4.3
+    env:
+      GODOT_VERSION: "4.3"
+      PROJECT_PATH: "."
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup templates and debug keystore
+        run: |
+          mkdir -v -p ~/.local/share/godot/export_templates/ ~/.config/godot
+          mv /root/.local/share/godot/export_templates/${GODOT_VERSION}.stable ~/.local/share/godot/export_templates/${GODOT_VERSION}.stable
+          keytool -keyalg RSA -genkeypair -alias androiddebugkey -keypass android -keystore debug.keystore -storepass android -dname "CN=Android Debug,O=Android,C=US" -validity 9999 -deststoretype pkcs12
+          mv debug.keystore /root/debug.keystore
+          cat > ~/.config/godot/editor_settings-4.tres <<EOF2
+          [gd_resource type="EditorSettings" format=3]
+          [resource]
+          export/android/android_sdk_path = "/usr/lib/android-sdk"
+          export/android/debug_keystore = "/root/debug.keystore"
+          export/android/debug_keystore_user = "androiddebugkey"
+          export/android/debug_keystore_pass = "android"
+          EOF2
+      - name: Import and export
+        run: |
+          godot --headless --import --path . || true
+          mkdir -p build
+          godot --headless --verbose --path . --export-debug "Android" build/ApexArena.apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ApexArena-apk
+          path: build/ApexArena.apk
