@@ -1,0 +1,24 @@
+name: Unzip Project
+on: workflow_dispatch
+
+permissions:
+  contents: write
+
+jobs:
+  unzip:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Unzip project files
+        run: |
+          echo "Searching for ZIP files..."
+          find . -maxdepth 2 -name "*.zip" -print
+          find . -maxdepth 2 -name "*.zip" -exec unzip -o {} \;
+          
+      - name: Remove original ZIP files
+        run: find . -maxdepth 2 -name "*.zip" -delete
+          
+      - uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "Extract project files automatically"
